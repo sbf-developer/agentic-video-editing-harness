@@ -1,0 +1,25 @@
+{
+  "name": "@video-harness/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "vh": "./dist/index.js",
+    "video-harness": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@video-harness/context": "*",
+    "@video-harness/core": "*",
+    "@video-harness/ingest": "*",
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "timestamp": "2026-07-20T23:47:15.902Z",
+  "planVersion": 1,
+  "pass": false,
+  "checks": [
+    {
+      "id": "brief-status",
+      "pass": false,
+      "detail": "Brief status is \"draft\" — approve before final render",
+      "severity": "warning"
+    },
+    {
+      "id": "brief-project-name",
+      "pass": true,
+      "detail": "Project name set"
+    },
+    {
+      "id": "brief-duration-cap",
+      "pass": true,
+      "detail": "Max duration: 15s"
+    },
+    {
+      "id": "brief-goal-section",
+      "pass": true,
+      "detail": "Goal section present",
+      "severity": "warning"
+    },
+    {
+      "id": "brief-social-duration",
+      "pass": true,
+      "detail": "Social platform \"tiktok\" — 15s cap",
+      "severity": "warning"
+    },
+    {
+      "id": "clip-duration-hook",
+      "pass": true,
+      "detail": "hook: 3.00s source span"
+    },
+    {
+      "id": "asset-hook",
+      "pass": false,
+      "detail": "hook: unknown assetId \"REPLACE_AFTER_INGEST\""
+    },
+    {
+      "id": "clip-duration-cta",
+      "pass": true,
+      "detail": "cta: 3.00s source span"
+    },
+    {
+      "id": "asset-cta",
+      "pass": false,
+      "detail": "cta: unknown assetId \"REPLACE_AFTER_INGEST\""
+    },
+    {
+      "id": "duration-cap",
+      "pass": true,
+      "detail": "6.00s / 15s cap"
+    },
+    {
+      "id": "hook-timing",
+      "pass": false,
+      "detail": "Hook ends at 3.00s (social cap: 2.0s)",
+      "severity": "error"
+    }
+  ],
+  "errors": [
+    {
+      "check": "paths-exist",
+      "message": "Unknown assetId \"REPLACE_AFTER_INGEST\" for clip \"hook\"",
+      "suggestion": "Run ingest or add asset to media-index.json"
+    },
+    {
+      "check": "paths-exist",
+      "message": "Unknown assetId \"REPLACE_AFTER_INGEST\" for clip \"cta\"",
+      "suggestion": "Run ingest or add asset to media-index.json"
+    },
+    {
+      "check": "hook-timing",
+      "message": "Hook ends at 3.00s — must land by 2.0s for tiktok",
+      "suggestion": "Trim hook clip or increase speed"
+    }
+  ]
+}

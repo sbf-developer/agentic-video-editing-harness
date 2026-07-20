@@ -1,0 +1,37 @@
+{
+  "$schema": "video-harness/edl/v1",
+  "version": 1,
+  "status": "draft",
+  "target": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "maxDurationSec": 15
+  },
+  "lanes": {
+    "video": [
+      {
+        "id": "hook",
+        "assetId": "REPLACE_AFTER_INGEST",
+        "in": 0,
+        "out": 3,
+        "purpose": "hook",
+        "speed": 1,
+        "note": "Pattern interrupt — first 1-3s"
+      },
+      {
+        "id": "cta",
+        "assetId": "REPLACE_AFTER_INGEST",
+        "in": 0,
+        "out": 3,
+        "purpose": "cta",
+        "note": "Final call to action"
+      }
+    ]
+  },
+  "transitions": [],
+  "captions": {
+    "enabled": false,
+    "style": "lower-third-bold"
+  }
+}
