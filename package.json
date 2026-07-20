@@ -4,11 +4,13 @@
   "private": true,
   "description": "Cursor for video editing — agent-native harness where AI edits plans and tools render pixels",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "build": "npm run build -w @video-harness/core && npm run build -w @video-harness/ingest && npm run build -w @video-harness/context && npm run build -w @video-harness/cli",
-    "dev": "npm run dev -w @video-harness/cli",
+    "dev": "npm run dev -w @video-harness/studio",
+    "studio": "npm run dev -w @video-harness/studio",
     "vh": "node packages/cli/dist/index.js",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },

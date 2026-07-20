@@ -1,5 +1,36 @@
 {
   "$schema": "video-harness/media-index/v1",
-  "generatedAt": "2026-07-20T23:47:13.248Z",
-  "assets": []
+  "generatedAt": "2026-07-20T23:49:13.203Z",
+  "assets": [
+    {
+      "id": "cta-clip",
+      "path": "assets/cta-clip.mp4",
+      "type": "video",
+      "durationSec": 5,
+      "width": 1280,
+      "height": 720,
+      "fps": 25,
+      "hasAudio": true,
+      "codec": "h264",
+      "scenes": [],
+      "tags": [],
+      "thumbnail": "qa/thumbs/cta-clip.jpg",
+      "transcript": null
+    },
+    {
+      "id": "hook-clip",
+      "path": "assets/hook-clip.mp4",
+      "type": "video",
+      "durationSec": 5,
+      "width": 1280,
+      "height": 720,
+      "fps": 25,
+      "hasAudio": true,
+      "codec": "h264",
+      "scenes": [],
+      "tags": [],
+      "thumbnail": "qa/thumbs/hook-clip.jpg",
+      "transcript": null
+    }
+  ]
 }

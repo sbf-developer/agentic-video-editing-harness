@@ -5,3 +5,11 @@ dist/
 tmp/
 .env
 .env.*
+
+# Per-project generated outputs
+projects/*/tmp/
+projects/*/renders/
+projects/*/scripts/
+projects/*/qa/snapshots/
+projects/*/qa/thumbs/
+projects/*/assets/

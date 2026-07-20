@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-07-20T23:47:15.902Z",
+  "timestamp": "2026-07-20T23:50:07.667Z",
   "planVersion": 1,
-  "pass": false,
+  "pass": true,
   "checks": [
     {
       "id": "brief-status",
@@ -34,50 +34,49 @@
     {
       "id": "clip-duration-hook",
       "pass": true,
-      "detail": "hook: 3.00s source span"
+      "detail": "hook: 2.00s source span"
     },
     {
-      "id": "asset-hook",
-      "pass": false,
-      "detail": "hook: unknown assetId \"REPLACE_AFTER_INGEST\""
+      "id": "path-hook",
+      "pass": true,
+      "detail": "hook: assets/hook-clip.mp4"
     },
     {
       "id": "clip-duration-cta",
       "pass": true,
-      "detail": "cta: 3.00s source span"
+      "detail": "cta: 2.50s source span"
     },
     {
-      "id": "asset-cta",
-      "pass": false,
-      "detail": "cta: unknown assetId \"REPLACE_AFTER_INGEST\""
+      "id": "path-cta",
+      "pass": true,
+      "detail": "cta: assets/cta-clip.mp4"
     },
     {
       "id": "duration-cap",
       "pass": true,
-      "detail": "6.00s / 15s cap"
+      "detail": "4.50s / 15s cap"
     },
     {
       "id": "hook-timing",
-      "pass": false,
-      "detail": "Hook ends at 3.00s (social cap: 2.0s)",
-      "severity": "error"
+      "pass": true,
+      "detail": "Hook ends at 2.00s (social cap: 2.0s)",
+      "severity": "warning"
+    },
+    {
+      "id": "output-duration",
+      "pass": true,
+      "detail": "Output 4.50s vs expected ~4.50s",
+      "severity": "warning"
     }
   ],
-  "errors": [
-    {
-      "check": "paths-exist",
-      "message": "Unknown assetId \"REPLACE_AFTER_INGEST\" for clip \"hook\"",
-      "suggestion": "Run ingest or add asset to media-index.json"
-    },
-    {
-      "check": "paths-exist",
-      "message": "Unknown assetId \"REPLACE_AFTER_INGEST\" for clip \"cta\"",
-      "suggestion": "Run ingest or add asset to media-index.json"
-    },
-    {
-      "check": "hook-timing",
-      "message": "Hook ends at 3.00s — must land by 2.0s for tiktok",
-      "suggestion": "Trim hook clip or increase speed"
-    }
+  "errors": [],
+  "snapshots": [
+    "C:/Users/scott/Desktop/dev/web/projects/demo-ad/qa/snapshots/00-start.jpg",
+    "C:/Users/scott/Desktop/dev/web/projects/demo-ad/qa/snapshots/01-hook-start.jpg",
+    "C:/Users/scott/Desktop/dev/web/projects/demo-ad/qa/snapshots/01-hook-end.jpg",
+    "C:/Users/scott/Desktop/dev/web/projects/demo-ad/qa/snapshots/02-cta-start.jpg",
+    "C:/Users/scott/Desktop/dev/web/projects/demo-ad/qa/snapshots/02-cta-end.jpg",
+    "C:/Users/scott/Desktop/dev/web/projects/demo-ad/qa/snapshots/99-final.jpg",
+    "C:/Users/scott/Desktop/dev/web/projects/demo-ad/qa/snapshots/00-start.jpg"
   ]
 }

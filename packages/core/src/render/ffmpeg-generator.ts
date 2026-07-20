@@ -84,13 +84,13 @@ export function generateRenderScripts(options: RenderScriptOptions): GeneratedRe
     commands.push(cmd);
   });
 
-  const concatList = join("tmp", "concat.txt");
-  const concatLines = clipOutputs.map((f) => `file '${f.replace(/\\/g, "/")}'`).join("\n");
-  shLines.push(`cat > ${shellQuote(concatList)} << 'EOF'`, concatLines, "EOF", "");
-  psLines.push(
-    `@(${clipOutputs.map((f) => `'file ''${f.replace(/\\/g, "/")}'''`).join(", ")}) | Set-Content -Path ${psQuote(concatList)}`,
-    "",
-  );
+  const concatList = "tmp/concat.txt";
+  const concatEntries = clipOutputs.map((f) => f.replace(/^tmp[/\\]/, ""));
+  const concatLines = concatEntries.map((f) => `file '${f}'`).join("\n");
+  writeFileSync(join(projectDir, concatList), concatLines + "\n", "utf8");
+
+  shLines.push(`# concat list written by harness → ${concatList}`, "");
+  psLines.push(`# concat list written by harness → ${concatList}`, "");
 
   const videoOnly = "tmp/video-only.mp4";
   const concatCmd = `ffmpeg -y -f concat -safe 0 -i ${shellQuote(concatList)} -c copy ${shellQuote(videoOnly)}`;
