@@ -30,6 +30,7 @@ export const SOCIAL_PLATFORMS = new Set([
 ]);
 
 export const PURPOSE_TAGS = [
+  "clip",
   "hook",
   "problem",
   "solution",

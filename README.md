@@ -6,6 +6,21 @@
 
 Requires **Node 20+**, **ffmpeg**, and **ffprobe** on PATH.
 
+### Studio (web UI)
+
+```bash
+npm install
+npm run build
+
+# AI editing — copy example env and add your DeepSeek key (never committed)
+cp apps/studio/.env.example apps/studio/.env
+# Edit apps/studio/.env → DEEPSEEK_API_KEY=sk-...
+
+npm run studio   # UI http://localhost:5173, API http://localhost:3847
+```
+
+### CLI
+
 ```bash
 npm install
 npm run build

@@ -1,37 +1,15 @@
 {
   "$schema": "video-harness/edl/v1",
   "version": 1,
-  "status": "approved",
+  "status": "draft",
   "target": {
     "width": 1080,
     "height": 1920,
     "fps": 30,
-    "maxDurationSec": 15
+    "maxDurationSec": 60
   },
   "lanes": {
-    "video": [
-      {
-        "id": "hook",
-        "assetId": "hook-clip",
-        "in": 0,
-        "out": 2,
-        "purpose": "hook",
-        "speed": 1,
-        "note": "Pattern interrupt — first 2s"
-      },
-      {
-        "id": "cta",
-        "assetId": "cta-clip",
-        "in": 0,
-        "out": 2.5,
-        "purpose": "cta",
-        "note": "Final call to action"
-      }
-    ]
+    "video": []
   },
-  "transitions": [],
-  "captions": {
-    "enabled": false,
-    "style": "lower-third-bold"
-  }
+  "transitions": []
 }
