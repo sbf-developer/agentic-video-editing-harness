@@ -279,13 +279,6 @@ button, input, select, textarea {
   line-height: 1.2;
 }
 
-.ai-head-sub {
-  margin: 1px 0 0;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  line-height: 1.2;
-}
-
 .ai-settings-btn {
   width: 28px;
   height: 28px;
@@ -350,51 +343,6 @@ button, input, select, textarea {
   gap: 14px;
   min-height: 0;
   scroll-behavior: smooth;
-}
-
-.ai-welcome {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 4px 2px 8px;
-}
-
-.ai-welcome-lead {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-  letter-spacing: -0.01em;
-}
-
-.ai-suggestions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ai-suggestion {
-  text-align: left;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.4;
-  cursor: pointer;
-  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
-}
-
-.ai-suggestion:hover:not(:disabled) {
-  background: var(--surface-hover);
-  border-color: var(--border);
-  color: var(--text);
-}
-
-.ai-suggestion:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .ai-msg {
@@ -510,33 +458,6 @@ button, input, select, textarea {
   backdrop-filter: blur(12px);
 }
 
-.ai-composer-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.ai-chip {
-  padding: 4px 9px;
-  border-radius: 999px;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  color: var(--text-tertiary);
-  font-size: 10px;
-  cursor: pointer;
-  transition: background 0.12s var(--ease), color 0.12s var(--ease);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
-
-.ai-chip:hover:not(:disabled) {
-  background: var(--surface-hover);
-  color: var(--text-secondary);
-}
-
 .ai-composer-box {
   display: flex;
   align-items: flex-end;
@@ -590,13 +511,6 @@ button, input, select, textarea {
 .ai-send:hover:not(:disabled) { background: #fff; }
 .ai-send:active:not(:disabled) { transform: scale(0.94); }
 .ai-send:disabled { opacity: 0.28; cursor: not-allowed; }
-
-.ai-composer-hint {
-  margin: 6px 4px 0;
-  font-size: 10px;
-  color: var(--text-tertiary);
-  text-align: center;
-}
 
 .panel-head {
   display: flex;

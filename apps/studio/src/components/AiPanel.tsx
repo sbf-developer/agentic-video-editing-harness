@@ -21,13 +21,6 @@ interface ChatMessage {
   meta?: { clipCount?: number; totalSec?: number };
 }
 
-const SUGGESTIONS = [
-  "30s montage with fast cuts",
-  "Slow cinematic pacing, 45 seconds",
-  "Tighten to 20 seconds for social",
-  "Open on the hero shot, fade out on logo",
-];
-
 function storageKey(projectId: string) {
   return `studio-chat-${projectId}`;
 }
@@ -152,8 +145,6 @@ export function AiPanel({ projectId, onSubmit, busy }: Props) {
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   }
 
-  const showWelcome = messages.length === 0 && !busy;
-
   return (
     <aside className="ai-panel">
       <header className="ai-head">
@@ -161,7 +152,6 @@ export function AiPanel({ projectId, onSubmit, busy }: Props) {
           <span className="ai-head-icon" aria-hidden>✦</span>
           <div>
             <h2>Editor</h2>
-            <p className="ai-head-sub">Describe your cut</p>
           </div>
         </div>
         <button
@@ -197,27 +187,6 @@ export function AiPanel({ projectId, onSubmit, busy }: Props) {
       )}
 
       <div className="ai-chat" ref={chatRef}>
-        {showWelcome && (
-          <div className="ai-welcome">
-            <p className="ai-welcome-lead">
-              Tell me what you want — pacing, length, mood — and I&apos;ll assemble a timeline from your media.
-            </p>
-            <div className="ai-suggestions">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className="ai-suggestion"
-                  disabled={busy}
-                  onClick={() => void send(s)}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {messages.map((msg) => (
           <div key={msg.id} className={`ai-msg ${msg.role}`}>
             {msg.role !== "user" && (
@@ -244,21 +213,6 @@ export function AiPanel({ projectId, onSubmit, busy }: Props) {
       </div>
 
       <div className="ai-composer">
-        {!showWelcome && messages.length > 0 && (
-          <div className="ai-composer-chips">
-            {SUGGESTIONS.slice(0, 2).map((s) => (
-              <button
-                key={s}
-                type="button"
-                className="ai-chip"
-                disabled={busy}
-                onClick={() => void send(s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="ai-composer-box">
           <textarea
             ref={inputRef}
@@ -284,7 +238,6 @@ export function AiPanel({ projectId, onSubmit, busy }: Props) {
             ↑
           </button>
         </div>
-        <p className="ai-composer-hint">Enter to send · Shift+Enter for new line</p>
       </div>
     </aside>
   );
