@@ -121,7 +121,7 @@ export function TimelineEditor({
     if (selectedIndex <= 0) return "cut";
     const prev = clips[selectedIndex - 1]!;
     const key = `${prev.id}->${selected!.id}`;
-    return plan.transitions?.find((t) => t.at === key)?.type ?? "cut";
+    return (plan.transitions?.find((t) => t.at === key)?.type ?? "cut") as "cut" | "crossfade" | "fade";
   }
 
   function onRulerClick(e: React.MouseEvent<HTMLDivElement>) {

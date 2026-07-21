@@ -7,7 +7,8 @@ import { ResizeHandle } from "./components/ResizeHandle";
 import { TimelineEditor } from "./components/TimelineEditor";
 import { usePlayback } from "./hooks/usePlayback";
 import { useLayoutSizes } from "./hooks/useLayoutSizes";
-import type { EditPlan, ProjectState } from "./types";
+import type { ClipFrame } from "./lib/frame";
+import type { AiEditSummary, EditPlan, ProjectState } from "./types";
 
 export default function App() {
   const [projects, setProjects] = useState<string[]>([]);
@@ -120,26 +121,26 @@ export default function App() {
     }
   }
 
-  async function aiEdit(prompt: string, apiKey?: string) {
+  async function aiEdit(
+    prompt: string,
+    apiKey?: string,
+    history?: Array<{ role: "user" | "assistant"; content: string }>,
+  ) {
     if (dirty) await savePlan();
     setBusy("ai");
     try {
-      const r = await api<{ plan: EditPlan }>(`/api/projects/${projectId}/ai-edit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, ...(apiKey ? { apiKey } : {}) }),
-      });
+      const r = await api<{ plan: EditPlan; summary: AiEditSummary }>(
+        `/api/projects/${projectId}/ai-edit`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, history, ...(apiKey ? { apiKey } : {}) }),
+        },
+      );
       setPlan(r.plan);
       setDirty(true);
       setSelectedClip(r.plan.lanes.video[0]?.id ?? null);
-      const clips = r.plan.lanes.video;
-      let totalSec = 0;
-      for (const c of clips) {
-        const asset = data?.index.assets.find((a) => a.id === c.assetId);
-        const dur = asset?.durationSec ?? (c.out - c.in);
-        totalSec += (Math.min(c.out, dur) - c.in) / (c.speed ?? 1);
-      }
-      return { clipCount: clips.length, totalSec };
+      return r.summary;
     } finally {
       setBusy("");
     }
@@ -185,6 +186,24 @@ export default function App() {
   function setTargetFormat(width: number, height: number) {
     if (!plan) return;
     patchPlan({ ...plan, target: { ...plan.target, width, height } });
+  }
+
+  function updateClipFrame(clipId: string, frame: ClipFrame | undefined) {
+    if (!plan) return;
+    patchPlan({
+      ...plan,
+      lanes: {
+        ...plan.lanes,
+        video: plan.lanes.video.map((c) => {
+          if (c.id !== clipId) return c;
+          if (!frame) {
+            const { frame: _removed, ...rest } = c;
+            return rest;
+          }
+          return { ...c, frame };
+        }),
+      },
+    });
   }
 
   const clips = plan?.lanes.video ?? [];
@@ -266,6 +285,7 @@ export default function App() {
             onPlayheadFromVideo={playback.setPlayhead}
             onPlayingChange={playback.setPlaying}
             onChangeTarget={setTargetFormat}
+            onUpdateClipFrame={updateClipFrame}
           />
 
           <ResizeHandle axis="y" onDelta={nudgeTimeline} />

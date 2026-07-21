@@ -10,6 +10,7 @@ interface Props {
   assets: MediaAsset[];
   playhead: number;
   playing: boolean;
+  fit?: "contain" | "cover";
   onTimeUpdate: (t: number) => void;
 }
 
@@ -19,6 +20,7 @@ export function SequencePlayer({
   assets,
   playhead,
   playing,
+  fit = "contain",
   onTimeUpdate,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -97,17 +99,12 @@ export function SequencePlayer({
 
   return (
     <video
+      key={src ?? "empty"}
       ref={videoRef}
-      className="preview-video"
+      className={`preview-video preview-video--${fit}`}
       src={src}
       playsInline
       preload="auto"
-      onClick={(e) => {
-        e.preventDefault();
-        (e.currentTarget as HTMLVideoElement).paused
-          ? e.currentTarget.play()
-          : e.currentTarget.pause();
-      }}
     />
   );
 }

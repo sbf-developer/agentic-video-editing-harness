@@ -16,7 +16,7 @@ import {
   type EditPlan,
 } from "@video-harness/core";
 
-import { generateEditPlan } from "./ai.js";
+import { generateEditPlan, summarizeEditPlan } from "./ai.js";
 import { getDeepSeekApiKey, isAiConfigured } from "./env.js";
 import { indexStudioAssets, syncStudioIndexIfNeeded } from "./ingest.js";
 import { loadStudioPlan, saveStudioPlan, StudioEditPlanSchema } from "./plan.js";
@@ -181,7 +181,11 @@ app.post("/api/projects/:id/ingest", async (req, res) => {
 
 app.post("/api/projects/:id/ai-edit", async (req, res) => {
   try {
-    const { prompt, apiKey } = req.body as { prompt?: string; apiKey?: string };
+    const { prompt, apiKey, history } = req.body as {
+      prompt?: string;
+      apiKey?: string;
+      history?: Array<{ role: "user" | "assistant"; content: string }>;
+    };
     if (!prompt?.trim()) return res.status(400).json({ error: "Prompt required" });
 
     const key = getDeepSeekApiKey(apiKey);
@@ -199,16 +203,24 @@ app.post("/api/projects/:id/ai-edit", async (req, res) => {
       return res.status(400).json({ error: "Upload assets before asking AI to edit" });
     }
 
+    const briefPath = join(dir, "BRIEF.md");
+    const brief = existsSync(briefPath) ? readFileSync(briefPath, "utf8") : null;
+
     const plan = await generateEditPlan({
       apiKey: key,
       prompt: prompt.trim(),
       currentPlan: currentPlan as EditPlan,
       mediaIndex: index,
+      brief,
+      history: history?.filter((h) => h.role === "user" || h.role === "assistant"),
     });
 
     const studioPlan = StudioEditPlanSchema.parse(plan);
     saveStudioPlan(join(dir, "edit-plan.json"), studioPlan);
-    res.json({ ok: true, plan: studioPlan });
+
+    const editSummary = summarizeEditPlan(studioPlan);
+
+    res.json({ ok: true, plan: studioPlan, summary: editSummary });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }

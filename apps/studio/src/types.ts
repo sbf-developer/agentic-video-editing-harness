@@ -6,13 +6,34 @@ export interface VideoClip {
   purpose: string;
   speed?: number;
   note?: string;
+  frame?: { scale: number; x: number; y: number };
 }
 
 export interface AudioLane {
   assetId: string;
   startSec?: number;
+  out?: number;
   gainDb?: number;
+  fadeInSec?: number;
   fadeOutSec?: number;
+  duckUnderVoDb?: number;
+}
+
+export interface SfxLane extends AudioLane {
+  purpose?: string;
+}
+
+export interface Overlay {
+  at: string;
+  text: string;
+  startSec: number;
+  endSec: number;
+}
+
+export interface Captions {
+  enabled: boolean;
+  source?: string;
+  style?: string;
 }
 
 export interface EditPlan {
@@ -23,8 +44,11 @@ export interface EditPlan {
     video: VideoClip[];
     voiceover?: AudioLane;
     music?: AudioLane;
+    sfx?: SfxLane[];
   };
   transitions?: Array<{ at: string; type: string; durationSec: number }>;
+  overlays?: Overlay[];
+  captions?: Captions;
 }
 
 export interface MediaAsset {
@@ -35,6 +59,8 @@ export interface MediaAsset {
   width?: number;
   height?: number;
   thumbnail?: string;
+  tags?: string[];
+  transcript?: string | null;
 }
 
 export interface ProjectState {
@@ -42,4 +68,15 @@ export interface ProjectState {
   plan: EditPlan;
   index: { assets: MediaAsset[] };
   outputUrl: string | null;
+}
+
+export interface AiEditSummary {
+  clipCount: number;
+  totalSec: number;
+  overlayCount: number;
+  transitionCount: number;
+  hasMusic: boolean;
+  hasVoiceover: boolean;
+  captionsEnabled: boolean;
+  summary: string;
 }

@@ -9,6 +9,14 @@ export const TransitionSchema = z.object({
   durationSec: z.number().nonnegative().default(0),
 });
 
+export const ClipFrameSchema = z.object({
+  /** 1 = default cover fit; >1 zooms in. */
+  scale: z.number().min(0.25).max(8).default(1),
+  /** Pan in output pixels (+right, +down). */
+  x: z.number().default(0),
+  y: z.number().default(0),
+});
+
 export const VideoClipSchema = z.object({
   id: z.string().min(1),
   assetId: z.string().min(1),
@@ -17,6 +25,7 @@ export const VideoClipSchema = z.object({
   purpose: PurposeTagSchema,
   speed: z.number().positive().default(1),
   note: z.string().optional(),
+  frame: ClipFrameSchema.optional(),
 });
 
 export const AudioLaneSchema = z.object({
@@ -71,6 +80,7 @@ export const EditPlanSchema = z.object({
 
 export type EditPlan = z.infer<typeof EditPlanSchema>;
 export type VideoClip = z.infer<typeof VideoClipSchema>;
+export type ClipFrame = z.infer<typeof ClipFrameSchema>;
 export type AudioLane = z.infer<typeof AudioLaneSchema>;
 export type Transition = z.infer<typeof TransitionSchema>;
 

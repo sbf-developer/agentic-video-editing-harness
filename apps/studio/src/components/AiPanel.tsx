@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import type { AiEditSummary } from "../types";
 
-export interface AiEditResult {
-  clipCount: number;
-  totalSec?: number;
-}
+export interface AiEditResult extends AiEditSummary {}
 
 interface Props {
   projectId: string;
-  onSubmit: (prompt: string, apiKey?: string) => Promise<AiEditResult>;
+  onSubmit: (
+    prompt: string,
+    apiKey?: string,
+    history?: Array<{ role: "user" | "assistant"; content: string }>,
+  ) => Promise<AiEditResult>;
   busy: boolean;
 }
 
@@ -18,7 +20,7 @@ interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
-  meta?: { clipCount?: number; totalSec?: number };
+  meta?: AiEditSummary;
 }
 
 function storageKey(projectId: string) {
@@ -43,11 +45,12 @@ function saveMessages(projectId: string, messages: ChatMessage[]) {
   }
 }
 
-function formatDuration(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
-  return m > 0 ? `${m}m ${s}s` : `${s}s`;
-}
+const EXAMPLE_PROMPTS = [
+  "Cut a 15s TikTok ad with a strong hook",
+  "Add title text on the first clip",
+  "Trim clip 2 to 3 seconds and add crossfades",
+  "Add background music from my audio assets",
+];
 
 export function AiPanel({ projectId, onSubmit, busy }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadMessages(projectId));
@@ -99,18 +102,27 @@ export function AiPanel({ projectId, onSubmit, busy }: Props) {
       role: "user",
       content: prompt,
     };
-    setMessages((m) => [...m, userMsg]);
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
     setDraft("");
     inputRef.current?.focus();
 
+    const history = nextMessages
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .slice(-8)
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
     try {
-      const result = await onSubmit(prompt, serverKeyConfigured ? undefined : apiKey);
-      const totalSec = result.totalSec;
-      const clipCount = result.clipCount;
+      const result = await onSubmit(
+        prompt,
+        serverKeyConfigured ? undefined : apiKey,
+        history,
+      );
+
       const summary =
-        clipCount === 0
-          ? "Timeline cleared — add more media or try a different prompt."
-          : `Built your edit — ${clipCount} clip${clipCount === 1 ? "" : "s"}${totalSec != null ? ` · ${formatDuration(totalSec)}` : ""}. Scrub the timeline or hit play to review.`;
+        result.clipCount === 0
+          ? "Timeline cleared. Upload more media or try a different prompt."
+          : `Done — ${result.summary}. Scrub the timeline or hit play to review.`;
 
       setMessages((m) => [
         ...m,
@@ -118,7 +130,7 @@ export function AiPanel({ projectId, onSubmit, busy }: Props) {
           id: `a-${Date.now()}`,
           role: "assistant",
           content: summary,
-          meta: { clipCount, totalSec },
+          meta: result,
         },
       ]);
     } catch (e) {
@@ -168,14 +180,19 @@ export function AiPanel({ projectId, onSubmit, busy }: Props) {
       {showSettings && (
         <div className="ai-settings">
           {serverKeyConfigured === true ? (
-            <p className="ai-status connected">DeepSeek connected</p>
+            <>
+              <p className="ai-status connected">DeepSeek connected</p>
+              <p className="ai-capabilities">
+                Can cut, reorder, trim clips · add text overlays · set transitions · add music/VO · reframe
+              </p>
+            </>
           ) : serverKeyConfigured === false ? (
             <label className="ai-key-field">
               <span>API key</span>
               <input
                 type="password"
                 className="input sm"
-                placeholder="sk-... or set in .env"
+                placeholder="sk-... or set DEEPSEEK_API_KEY in .env"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
               />
@@ -187,6 +204,19 @@ export function AiPanel({ projectId, onSubmit, busy }: Props) {
       )}
 
       <div className="ai-chat" ref={chatRef}>
+        {messages.length === 0 && !busy && (
+          <div className="ai-empty">
+            <p>Describe your edit — the AI updates the timeline, text, audio, and cuts.</p>
+            <div className="ai-examples">
+              {EXAMPLE_PROMPTS.map((ex) => (
+                <button key={ex} type="button" className="ai-example" onClick={() => void send(ex)}>
+                  {ex}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {messages.map((msg) => (
           <div key={msg.id} className={`ai-msg ${msg.role}`}>
             {msg.role !== "user" && (
@@ -218,7 +248,7 @@ export function AiPanel({ projectId, onSubmit, busy }: Props) {
             ref={inputRef}
             className="ai-composer-input"
             rows={1}
-            placeholder="Ask for an edit…"
+            placeholder="Cut a 15s ad, add text, trim clips…"
             value={draft}
             disabled={busy}
             onChange={(e) => {

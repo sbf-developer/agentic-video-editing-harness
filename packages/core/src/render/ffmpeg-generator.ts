@@ -3,9 +3,13 @@ import { dirname, join } from "node:path";
 import {
   clipDurationSec,
   computeTimelineDurationSec,
+  OverlaySchema,
   type EditPlan,
 } from "../schemas/edl.js";
 import { getAsset, type MediaIndex } from "../schemas/media-index.js";
+import type { z } from "zod";
+
+type Overlay = z.infer<typeof OverlaySchema>;
 
 export interface RenderScriptOptions {
   projectDir: string;
@@ -33,8 +37,60 @@ function dbToVolume(db: number): number {
   return Math.round(Math.pow(10, db / 20) * 1000) / 1000;
 }
 
-function scaleCropFilter(width: number, height: number): string {
-  return `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1`;
+function scaleCropFilter(width: number, height: number, frame?: { scale?: number; x?: number; y?: number }): string {
+  const zoom = frame?.scale ?? 1;
+  const px = Math.round(frame?.x ?? 0);
+  const py = Math.round(frame?.y ?? 0);
+  if (zoom === 1 && px === 0 && py === 0) {
+    return `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1`;
+  }
+  return (
+    `scale=${width}:${height}:force_original_aspect_ratio=increase,` +
+    `scale=iw*${zoom}:ih*${zoom},` +
+    `crop=${width}:${height}:(iw-${width})/2+${px}:(ih-${height})/2+${py},setsar=1`
+  );
+}
+
+function escapeDrawtext(text: string): string {
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "'\\''")
+    .replace(/:/g, "\\:")
+    .replace(/%/g, "\\%");
+}
+
+function overlayAbsTimes(plan: EditPlan, overlay: Overlay): { start: number; end: number } | null {
+  let cursor = 0;
+  for (const clip of plan.lanes.video) {
+    const dur = clipDurationSec(clip);
+    if (clip.id === overlay.at) {
+      return {
+        start: cursor + overlay.startSec,
+        end: cursor + overlay.endSec,
+      };
+    }
+    cursor += dur;
+  }
+  return null;
+}
+
+function buildOverlayFilter(plan: EditPlan, width: number, height: number): string | null {
+  if (!plan.overlays?.length) return null;
+  const fontSize = Math.max(28, Math.round(width * 0.045));
+  const yPos = Math.round(height * 0.82);
+  const parts: string[] = [];
+  for (const overlay of plan.overlays) {
+    const times = overlayAbsTimes(plan, overlay);
+    if (!times) continue;
+    const text = escapeDrawtext(overlay.text);
+    parts.push(
+      `drawtext=text='${text}':fontsize=${fontSize}:fontcolor=white:` +
+        `borderw=3:bordercolor=black@0.6:` +
+        `x=(w-text_w)/2:y=${yPos}:` +
+        `enable='between(t\\,${times.start.toFixed(3)}\\,${times.end.toFixed(3)})'`,
+    );
+  }
+  return parts.length ? parts.join(",") : null;
 }
 
 export function generateRenderScripts(options: RenderScriptOptions): GeneratedRender {
@@ -47,7 +103,6 @@ export function generateRenderScripts(options: RenderScriptOptions): GeneratedRe
   mkdirSync(dirname(join(projectDir, outputRelative)), { recursive: true });
 
   const { width, height, fps } = plan.target;
-  const vfBase = scaleCropFilter(width, height);
   const commands: string[] = [];
   const shLines = ["#!/usr/bin/env bash", "set -euo pipefail", `cd ${shellQuote(projectDir)}`, ""];
   const psLines = ["$ErrorActionPreference = 'Stop'", `Set-Location ${psQuote(projectDir)}`, ""];
@@ -62,7 +117,7 @@ export function generateRenderScripts(options: RenderScriptOptions): GeneratedRe
     const outClip = `tmp/clip-${String(i).padStart(2, "0")}-${clip.id}.mp4`;
     clipOutputs.push(outClip);
 
-    let vf = vfBase;
+    let vf = scaleCropFilter(width, height, clip.frame);
     if (clip.speed !== 1) {
       vf += `,setpts=PTS/${clip.speed}`;
     }
@@ -84,19 +139,26 @@ export function generateRenderScripts(options: RenderScriptOptions): GeneratedRe
     commands.push(cmd);
   });
 
+  const videoOnly = "tmp/video-only.mp4";
   const concatList = "tmp/concat.txt";
   const concatEntries = clipOutputs.map((f) => f.replace(/^tmp[/\\]/, ""));
   const concatLines = concatEntries.map((f) => `file '${f}'`).join("\n");
   writeFileSync(join(projectDir, concatList), concatLines + "\n", "utf8");
 
-  shLines.push(`# concat list written by harness → ${concatList}`, "");
-  psLines.push(`# concat list written by harness → ${concatList}`, "");
+  const overlayFilter = buildOverlayFilter(plan, width, height);
+  let concatCmd = `ffmpeg -y -f concat -safe 0 -i ${shellQuote(concatList)} -c copy ${shellQuote(videoOnly)}`;
+  if (overlayFilter) {
+    concatCmd =
+      `ffmpeg -y -f concat -safe 0 -i ${shellQuote(concatList)} -vf "${overlayFilter}" ` +
+      `-c:v libx264 -crf 18 -an ${shellQuote(videoOnly)}`;
+  }
 
-  const videoOnly = "tmp/video-only.mp4";
-  const concatCmd = `ffmpeg -y -f concat -safe 0 -i ${shellQuote(concatList)} -c copy ${shellQuote(videoOnly)}`;
-  shLines.push(concatCmd, "");
+  shLines.push(`# concat → ${concatList}`, concatCmd, "");
   psLines.push(
-    `ffmpeg -y -f concat -safe 0 -i ${psQuote(concatList)} -c copy ${psQuote(videoOnly)}`,
+    `# concat → ${concatList}`,
+    overlayFilter
+      ? `ffmpeg -y -f concat -safe 0 -i ${psQuote(concatList)} -vf "${overlayFilter}" -c:v libx264 -crf 18 -an ${psQuote(videoOnly)}`
+      : `ffmpeg -y -f concat -safe 0 -i ${psQuote(concatList)} -c copy ${psQuote(videoOnly)}`,
     "",
   );
   commands.push(concatCmd);
