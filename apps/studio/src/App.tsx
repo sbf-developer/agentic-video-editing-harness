@@ -258,7 +258,6 @@ export default function App() {
             projectId={projectId}
             plan={plan}
             assets={data.index.assets}
-            outputUrl={data.outputUrl}
             segments={playback.segments}
             playhead={playback.playhead}
             playing={playback.playing}

@@ -2,14 +2,13 @@ import { useState } from "react";
 import { usePreviewFrameSize } from "../hooks/usePreviewFrameSize";
 import { FORMAT_PRESETS, formatTimecode } from "../lib/media";
 import { SequencePlayer } from "./SequencePlayer";
-import type { EditPlan, MediaAsset, VideoClip } from "../types";
+import type { EditPlan, MediaAsset } from "../types";
 import type { TimelineSegment } from "../lib/timeline";
 
 interface Props {
   projectId: string;
   plan: EditPlan;
   assets: MediaAsset[];
-  outputUrl: string | null;
   segments: TimelineSegment[];
   playhead: number;
   playing: boolean;
@@ -24,7 +23,6 @@ export function PreviewPanel({
   projectId,
   plan,
   assets,
-  outputUrl,
   segments,
   playhead,
   playing,
@@ -34,10 +32,8 @@ export function PreviewPanel({
   onPlayingChange,
   onChangeTarget,
 }: Props) {
-  const [mode, setMode] = useState<"sequence" | "export">("sequence");
   const [formatOpen, setFormatOpen] = useState(false);
 
-  // Program monitor always matches export canvas — source clips letterbox inside.
   const previewAspect = plan.target.width / plan.target.height;
 
   const formatId =
@@ -47,30 +43,12 @@ export function PreviewPanel({
   const currentFormat =
     FORMAT_PRESETS.find((p) => p.id === formatId)?.label ?? `${plan.target.width}×${plan.target.height}`;
 
-  const showExport = mode === "export" && outputUrl;
   const { stageRef, size: frameSize } = usePreviewFrameSize(previewAspect);
 
   return (
     <section className="preview-panel">
       <div className="preview-toolbar">
-        <div className="preview-mode-tabs segmented">
-          <button
-            type="button"
-            className={`mode-tab ${mode === "sequence" ? "active" : ""}`}
-            onClick={() => setMode("sequence")}
-          >
-            Preview
-          </button>
-          {outputUrl && (
-            <button
-              type="button"
-              className={`mode-tab ${mode === "export" ? "active" : ""}`}
-              onClick={() => setMode("export")}
-            >
-              Export
-            </button>
-          )}
-        </div>
+        <span className="preview-label">Program</span>
         <div className="format-picker">
           <button
             type="button"
@@ -119,22 +97,18 @@ export function PreviewPanel({
             style={{ width: frameSize.width, height: frameSize.height }}
           >
             <div className="preview-media-slot">
-              {showExport ? (
-                <video key={outputUrl} src={outputUrl} controls playsInline className="preview-video" />
-              ) : (
-                <SequencePlayer
-                  projectId={projectId}
-                  segments={segments}
-                  assets={assets}
-                  playhead={playhead}
-                  playing={playing}
-                  onTimeUpdate={(t) => {
-                    onPlayheadFromVideo(t);
-                    const total = segments.at(-1);
-                    if (total && t >= total.start + total.dur - 0.05) onPlayingChange(false);
-                  }}
-                />
-              )}
+              <SequencePlayer
+                projectId={projectId}
+                segments={segments}
+                assets={assets}
+                playhead={playhead}
+                playing={playing}
+                onTimeUpdate={(t) => {
+                  onPlayheadFromVideo(t);
+                  const total = segments.at(-1);
+                  if (total && t >= total.start + total.dur - 0.05) onPlayingChange(false);
+                }}
+              />
             </div>
           </div>
         )}
