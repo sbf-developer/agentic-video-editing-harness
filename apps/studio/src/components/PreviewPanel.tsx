@@ -1,14 +1,21 @@
-import { useMemo } from "react";
-import { FORMAT_PRESETS, assetAspect } from "../lib/media";
-import { SourceVideo } from "./SourceVideo";
+import { useState } from "react";
+import { FORMAT_PRESETS, formatTimecode } from "../lib/media";
+import { SequencePlayer } from "./SequencePlayer";
 import type { EditPlan, MediaAsset, VideoClip } from "../types";
+import type { TimelineSegment } from "../lib/timeline";
 
 interface Props {
   projectId: string;
   plan: EditPlan;
   assets: MediaAsset[];
   outputUrl: string | null;
-  selectedClip: VideoClip | null;
+  segments: TimelineSegment[];
+  playhead: number;
+  playing: boolean;
+  onSeek: (t: number) => void;
+  onTogglePlay: () => void;
+  onPlayheadFromVideo: (t: number) => void;
+  onPlayingChange: (playing: boolean) => void;
   onChangeTarget: (width: number, height: number) => void;
 }
 
@@ -17,28 +24,47 @@ export function PreviewPanel({
   plan,
   assets,
   outputUrl,
-  selectedClip,
+  segments,
+  playhead,
+  playing,
+  onSeek,
+  onTogglePlay,
+  onPlayheadFromVideo,
+  onPlayingChange,
   onChangeTarget,
 }: Props) {
-  const assetMap = new Map(assets.map((a) => [a.id, a]));
-  const selectedAsset = selectedClip ? assetMap.get(selectedClip.assetId) : null;
+  const [mode, setMode] = useState<"sequence" | "export">("sequence");
 
-  const previewAspect = useMemo(() => {
-    if (outputUrl) {
-      return plan.target.width / plan.target.height;
-    }
-    if (selectedAsset) return assetAspect(selectedAsset);
-    return plan.target.width / plan.target.height;
-  }, [outputUrl, selectedAsset, plan.target.width, plan.target.height]);
+  // Program monitor always matches export canvas — source clips letterbox inside.
+  const previewAspect = plan.target.width / plan.target.height;
 
   const formatId =
     FORMAT_PRESETS.find((p) => p.width === plan.target.width && p.height === plan.target.height)?.id ??
     "custom";
 
+  const showExport = mode === "export" && outputUrl;
+
   return (
     <section className="preview-panel">
       <div className="preview-toolbar">
-        <span className="preview-label">Program</span>
+        <div className="preview-mode-tabs segmented">
+          <button
+            type="button"
+            className={`mode-tab ${mode === "sequence" ? "active" : ""}`}
+            onClick={() => setMode("sequence")}
+          >
+            Preview
+          </button>
+          {outputUrl && (
+            <button
+              type="button"
+              className={`mode-tab ${mode === "export" ? "active" : ""}`}
+              onClick={() => setMode("export")}
+            >
+              Export
+            </button>
+          )}
+        </div>
         <select
           className="select format-select"
           value={formatId}
@@ -50,9 +76,6 @@ export function PreviewPanel({
           {FORMAT_PRESETS.map((p) => (
             <option key={p.id} value={p.id}>{p.label}</option>
           ))}
-          {formatId === "custom" && (
-            <option value="custom">{plan.target.width}×{plan.target.height}</option>
-          )}
         </select>
         <span className="preview-dims">{plan.target.width}×{plan.target.height}</span>
       </div>
@@ -61,33 +84,50 @@ export function PreviewPanel({
         className="preview-stage"
         style={{ "--preview-aspect": String(previewAspect) } as import("react").CSSProperties}
       >
-        <div className="preview-frame">
-          {outputUrl ? (
-            <video key={outputUrl} src={outputUrl} controls playsInline className="preview-media" />
-          ) : selectedAsset?.type === "video" && selectedClip ? (
-            <SourceVideo
-              projectId={projectId}
-              path={selectedAsset.path}
-              inSec={selectedClip.in}
-              className="preview-media"
-            />
-          ) : (
-            <div className="preview-placeholder">
-              <p>No preview</p>
-              <span>Select a clip or export to preview</span>
-            </div>
-          )}
+        <div className="preview-fit">
+          <div className="preview-frame">
+            {showExport ? (
+              <video key={outputUrl} src={outputUrl} controls playsInline className="preview-media" />
+            ) : (
+              <SequencePlayer
+                projectId={projectId}
+                segments={segments}
+                assets={assets}
+                playhead={playhead}
+                playing={playing}
+                onTimeUpdate={(t) => {
+                  onPlayheadFromVideo(t);
+                  const total = segments.at(-1);
+                  if (total && t >= total.start + total.dur - 0.05) onPlayingChange(false);
+                }}
+                className="preview-media"
+              />
+            )}
+          </div>
         </div>
       </div>
 
-      {selectedAsset?.type === "video" && !outputUrl && (
-        <div className="preview-source-tag">
-          Source: {selectedAsset.id}
-          {selectedAsset.width && selectedAsset.height
-            ? ` · ${selectedAsset.width}×${selectedAsset.height}`
-            : ""}
-        </div>
-      )}
+      <div className="transport">
+        <button type="button" className="btn primary transport-play" onClick={onTogglePlay} title={playing ? "Pause" : "Play"}>
+          {playing ? "❚❚" : "▶"}
+        </button>
+        <span className="transport-time">{formatTimecode(playhead)}</span>
+        <input
+          type="range"
+          className="transport-scrubber"
+          min={0}
+          max={Math.max(segments.at(-1) ? segments.at(-1)!.start + segments.at(-1)!.dur : 1, 0.1)}
+          step={0.05}
+          value={playhead}
+          onChange={(e) => {
+            onPlayingChange(false);
+            onSeek(parseFloat(e.target.value));
+          }}
+        />
+        <span className="transport-time">
+          {formatTimecode(segments.at(-1) ? segments.at(-1)!.start + segments.at(-1)!.dur : 0)}
+        </span>
+      </div>
     </section>
   );
 }

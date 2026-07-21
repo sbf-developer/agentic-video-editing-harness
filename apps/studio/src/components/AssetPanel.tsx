@@ -98,17 +98,8 @@ export function AssetPanel({
           disabled={locked}
           onChange={(e) => upload(e.target.files).finally(() => { e.target.value = ""; })}
         />
-        {uploading ? (
-          <>
-            <span className="dropzone-title">Indexing media…</span>
-            <span className="dropzone-sub">This may take a moment for large files</span>
-          </>
-        ) : (
-          <>
-            <span className="dropzone-title">Upload</span>
-            <span className="dropzone-sub">Drop or click · video, audio, image</span>
-          </>
-        )}
+        <span className="dropzone-title">{uploading ? "Indexing…" : "Add media"}</span>
+        {!uploading && <span className="dropzone-sub">Video, audio, or image</span>}
       </div>
 
       <ul className="asset-list">
@@ -124,38 +115,38 @@ export function AssetPanel({
                 <span className="asset-thumb-icon">{typeIcon(a.type)}</span>
               )}
             </div>
-              <div className="asset-body">
-                <span className="asset-name" title={a.id}>{a.id}</span>
-                <span className="asset-meta">
-                  {a.type}
-                  {a.durationSec != null ? ` · ${a.durationSec.toFixed(1)}s` : ""}
-                </span>
-                <div className="asset-actions">
-                  {a.type === "video" && (
-                    <button type="button" className="btn-text" onClick={() => onAddToTimeline(a.id)}>
-                      Add to timeline
-                    </button>
-                  )}
-                  {a.type === "audio" && (
-                    <>
-                      <button type="button" className="btn-text" onClick={() => onAddAudio(a.id, "music")}>
-                        Music
-                      </button>
-                      <button type="button" className="btn-text" onClick={() => onAddAudio(a.id, "voiceover")}>
-                        Voice
-                      </button>
-                    </>
-                  )}
-                  <button
-                    type="button"
-                    className="btn-text danger"
-                    disabled={!!removing}
-                    onClick={() => removeAsset(a.id)}
-                  >
-                    Remove
+            <div className="asset-body">
+              <span className="asset-name" title={a.id}>{a.id}</span>
+              <span className="asset-meta">
+                {a.type}
+                {a.durationSec != null ? ` · ${a.durationSec.toFixed(1)}s` : ""}
+              </span>
+              <div className="asset-actions">
+                {a.type === "video" && (
+                  <button type="button" className="btn-text" onClick={() => onAddToTimeline(a.id)}>
+                    Add
                   </button>
-                </div>
+                )}
+                {a.type === "audio" && (
+                  <>
+                    <button type="button" className="btn-text" onClick={() => onAddAudio(a.id, "music")}>
+                      Music
+                    </button>
+                    <button type="button" className="btn-text" onClick={() => onAddAudio(a.id, "voiceover")}>
+                      Voice
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="btn-text danger"
+                  disabled={!!removing}
+                  onClick={() => removeAsset(a.id)}
+                >
+                  Remove
+                </button>
               </div>
+            </div>
             </li>
         ))}
       </ul>

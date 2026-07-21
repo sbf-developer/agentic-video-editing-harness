@@ -4,6 +4,7 @@ import { AssetPanel } from "./components/AssetPanel";
 import { AiPanel } from "./components/AiPanel";
 import { PreviewPanel } from "./components/PreviewPanel";
 import { TimelineEditor } from "./components/TimelineEditor";
+import { usePlayback } from "./hooks/usePlayback";
 import type { EditPlan, ProjectState } from "./types";
 
 export default function App() {
@@ -128,9 +129,15 @@ export default function App() {
       });
       setPlan(r.plan);
       setDirty(true);
-      notify("AI updated timeline");
-    } catch (e) {
-      notify(String(e), "err");
+      setSelectedClip(r.plan.lanes.video[0]?.id ?? null);
+      const clips = r.plan.lanes.video;
+      let totalSec = 0;
+      for (const c of clips) {
+        const asset = data?.index.assets.find((a) => a.id === c.assetId);
+        const dur = asset?.durationSec ?? (c.out - c.in);
+        totalSec += (Math.min(c.out, dur) - c.in) / (c.speed ?? 1);
+      }
+      return { clipCount: clips.length, totalSec };
     } finally {
       setBusy("");
     }
@@ -178,9 +185,8 @@ export default function App() {
     patchPlan({ ...plan, target: { ...plan.target, width, height } });
   }
 
-  const selectedClipObj = selectedClip
-    ? plan?.lanes.video.find((c) => c.id === selectedClip) ?? null
-    : null;
+  const clips = plan?.lanes.video ?? [];
+  const playback = usePlayback(clips);
 
   if (bootError) {
     return (
@@ -201,7 +207,7 @@ export default function App() {
     <div className="app">
       <header className="header">
         <div className="header-left">
-          <span className="logo">Studio</span>
+          <span className="logo">Studio<span className="logo-dot">.</span></span>
           <select className="select" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
             {projects.map((p) => (
               <option key={p} value={p}>{p}</option>
@@ -238,7 +244,13 @@ export default function App() {
             plan={plan}
             assets={data.index.assets}
             outputUrl={data.outputUrl}
-            selectedClip={selectedClipObj}
+            segments={playback.segments}
+            playhead={playback.playhead}
+            playing={playback.playing}
+            onSeek={playback.seek}
+            onTogglePlay={playback.togglePlay}
+            onPlayheadFromVideo={playback.setPlayhead}
+            onPlayingChange={playback.setPlaying}
             onChangeTarget={setTargetFormat}
           />
 
@@ -247,12 +259,14 @@ export default function App() {
             assets={data.index.assets}
             projectId={projectId}
             selectedId={selectedClip}
+            playhead={playback.playhead}
+            onSeek={playback.seek}
             onSelect={setSelectedClip}
             onChange={patchPlan}
           />
         </main>
 
-        <AiPanel onSubmit={aiEdit} busy={busy === "ai"} />
+        <AiPanel projectId={projectId} onSubmit={aiEdit} busy={busy === "ai"} />
       </div>
     </div>
   );

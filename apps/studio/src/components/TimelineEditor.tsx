@@ -1,20 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatTimecode } from "../lib/media";
+import { buildSegments, clipDur, locateAtTime, splitClipAtOffset } from "../lib/timeline";
+import { ClipBlock } from "./ClipBlock";
 import { SourceVideo } from "./SourceVideo";
-import { VideoThumb } from "./VideoThumb";
 import type { EditPlan, MediaAsset, VideoClip } from "../types";
-
-function clipDur(c: VideoClip): number {
-  return (c.out - c.in) / (c.speed ?? 1);
-}
 
 interface Props {
   plan: EditPlan;
   assets: MediaAsset[];
   projectId: string;
   selectedId: string | null;
+  playhead: number;
   onSelect: (id: string | null) => void;
   onChange: (plan: EditPlan) => void;
+  onSeek: (t: number) => void;
 }
 
 const MIN_ZOOM = 24;
@@ -26,8 +25,10 @@ export function TimelineEditor({
   assets,
   projectId,
   selectedId,
+  playhead,
   onSelect,
   onChange,
+  onSeek,
 }: Props) {
   const clips = plan.lanes.video;
   const total = clips.reduce((s, c) => s + clipDur(c), 0);
@@ -38,17 +39,8 @@ export function TimelineEditor({
   const assetMap = new Map(assets.map((a) => [a.id, a]));
   const selectedAsset = selected ? assetMap.get(selected.assetId) : null;
 
+  const segments = useMemo(() => buildSegments(clips), [clips]);
   const timelineWidth = Math.max(total * zoom, 600);
-
-  const segments = useMemo(() => {
-    let cursor = 0;
-    return clips.map((clip) => {
-      const start = cursor;
-      const dur = clipDur(clip);
-      cursor += dur;
-      return { clip, start, dur };
-    });
-  }, [clips]);
 
   const ticks = useMemo(() => {
     const step = zoom >= 60 ? 1 : zoom >= 40 ? 2 : 5;
@@ -61,17 +53,16 @@ export function TimelineEditor({
     onChange({ ...plan, lanes: { ...plan.lanes, video: next } });
   }
 
+  function updateClip(id: string, patch: Partial<VideoClip>) {
+    updateClips(clips.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  }
+
   function moveClip(index: number, dir: -1 | 1) {
     const next = [...clips];
     const j = index + dir;
     if (j < 0 || j >= next.length) return;
     [next[index], next[j]] = [next[j]!, next[index]!];
     updateClips(next);
-  }
-
-  function updateSelected(patch: Partial<VideoClip>) {
-    if (!selected) return;
-    updateClips(clips.map((c) => (c.id === selected.id ? { ...c, ...patch } : c)));
   }
 
   function removeSelected() {
@@ -91,19 +82,28 @@ export function TimelineEditor({
 
   function splitSelected() {
     if (!selected) return;
-    const mid = (selected.in + selected.out) / 2;
-    if (mid <= selected.in || mid >= selected.out) return;
-    const first: VideoClip = { ...selected, out: mid };
-    const second: VideoClip = { ...selected, id: `clip-${Date.now().toString(36)}`, in: mid };
+    splitAtPlayhead(selected.id);
+  }
+
+  function splitAtPlayhead(clipId?: string) {
+    const id = clipId ?? selected?.id;
+    if (!id) return;
+    const idx = clips.findIndex((c) => c.id === id);
+    if (idx < 0) return;
+    const seg = segments[idx];
+    if (!seg) return;
+    const offset = playhead - seg.start;
+    const parts = splitClipAtOffset(seg.clip, offset);
+    if (!parts) return;
     const next = [...clips];
-    next.splice(selectedIndex, 1, first, second);
+    next.splice(idx, 1, parts[0]!, parts[1]!);
     updateClips(next);
-    onSelect(second.id);
+    onSelect(parts[1]!.id);
   }
 
   function useFullAsset() {
     if (!selected || !selectedAsset?.durationSec) return;
-    updateSelected({ in: 0, out: selectedAsset.durationSec });
+    updateClip(selected.id, { in: 0, out: selectedAsset.durationSec });
   }
 
   function setTransition(type: "cut" | "crossfade" | "fade") {
@@ -122,6 +122,12 @@ export function TimelineEditor({
     const prev = clips[selectedIndex - 1]!;
     const key = `${prev.id}->${selected!.id}`;
     return plan.transitions?.find((t) => t.at === key)?.type ?? "cut";
+  }
+
+  function onRulerClick(e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left + (scrollRef.current?.scrollLeft ?? 0);
+    onSeek(Math.max(0, x / zoom));
   }
 
   useEffect(() => {
@@ -144,10 +150,14 @@ export function TimelineEditor({
         e.preventDefault();
         duplicateSelected();
       }
+      if (e.key === "k" || e.key === " ") {
+        e.preventDefault();
+        splitAtPlayhead();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, selectedIndex, clips]);
+  }, [selected, selectedIndex, clips, playhead]);
 
   useEffect(() => {
     if (!selected || !scrollRef.current) return;
@@ -160,36 +170,32 @@ export function TimelineEditor({
     }
   }, [selectedId, selectedIndex, segments, zoom]);
 
+  const clipAtPlayhead = locateAtTime(segments, playhead);
+
   return (
     <div className="nle">
       <div className="nle-toolbar">
         <div className="nle-toolbar-left">
           <span className="nle-time">{formatTimecode(total)}</span>
-          <span className="nle-meta">{clips.length} clips</span>
+          <span className="nle-meta">{clips.length} clips · playhead {formatTimecode(playhead)}</span>
         </div>
         <div className="nle-toolbar-center">
           {selected ? (
             <>
               <button type="button" className="btn ghost sm" onClick={() => moveClip(selectedIndex, -1)} disabled={selectedIndex === 0}>←</button>
               <button type="button" className="btn ghost sm" onClick={() => moveClip(selectedIndex, 1)} disabled={selectedIndex === clips.length - 1}>→</button>
-              <button type="button" className="btn ghost sm" onClick={splitSelected}>Split</button>
+              <button type="button" className="btn ghost sm" onClick={splitSelected}>Split at playhead</button>
               <button type="button" className="btn ghost sm" onClick={duplicateSelected}>Dup</button>
               <button type="button" className="btn ghost sm danger" onClick={removeSelected}>Del</button>
             </>
           ) : (
-            <span className="nle-hint">Select a clip to edit</span>
+            <span className="nle-hint">Click to scrub · drag clip edges · right-click to cut</span>
           )}
         </div>
         <div className="nle-toolbar-right">
           <label className="zoom-label">
             Zoom
-            <input
-              type="range"
-              min={MIN_ZOOM}
-              max={MAX_ZOOM}
-              value={zoom}
-              onChange={(e) => setZoom(Number(e.target.value))}
-            />
+            <input type="range" min={MIN_ZOOM} max={MAX_ZOOM} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
           </label>
         </div>
       </div>
@@ -198,18 +204,13 @@ export function TimelineEditor({
         <div className="nle-inspector">
           <div className="nle-inspector-preview">
             {selectedAsset?.type === "video" && (
-              <SourceVideo
-                projectId={projectId}
-                path={selectedAsset.path}
-                inSec={selected.in}
-                className="nle-inspector-video"
-              />
+              <SourceVideo projectId={projectId} path={selectedAsset.path} inSec={selected.in} className="nle-inspector-video" />
             )}
           </div>
           <div className="nle-inspector-fields">
             <label className="field compact">
               <span>Source</span>
-              <select value={selected.assetId} onChange={(e) => updateSelected({ assetId: e.target.value })}>
+              <select value={selected.assetId} onChange={(e) => updateClip(selected.id, { assetId: e.target.value })}>
                 {assets.filter((a) => a.type === "video").map((a) => (
                   <option key={a.id} value={a.id}>{a.id}</option>
                 ))}
@@ -217,15 +218,15 @@ export function TimelineEditor({
             </label>
             <label className="field compact">
               <span>In</span>
-              <input type="number" step="0.1" min={0} value={selected.in} onChange={(e) => updateSelected({ in: Math.max(0, parseFloat(e.target.value) || 0) })} />
+              <input type="number" step="0.1" min={0} value={selected.in} onChange={(e) => updateClip(selected.id, { in: Math.max(0, parseFloat(e.target.value) || 0) })} />
             </label>
             <label className="field compact">
               <span>Out</span>
-              <input type="number" step="0.1" min={0.1} value={selected.out} onChange={(e) => updateSelected({ out: Math.max(0.1, parseFloat(e.target.value) || 0.1) })} />
+              <input type="number" step="0.1" min={0.1} value={selected.out} onChange={(e) => updateClip(selected.id, { out: Math.max(0.1, parseFloat(e.target.value) || 0.1) })} />
             </label>
             <label className="field compact">
               <span>Speed</span>
-              <input type="number" step="0.1" min={0.1} max={4} value={selected.speed ?? 1} onChange={(e) => updateSelected({ speed: Math.max(0.1, parseFloat(e.target.value) || 1) })} />
+              <input type="number" step="0.1" min={0.1} max={4} value={selected.speed ?? 1} onChange={(e) => updateClip(selected.id, { speed: Math.max(0.1, parseFloat(e.target.value) || 1) })} />
             </label>
             {selectedIndex > 0 && (
               <label className="field compact">
@@ -251,8 +252,8 @@ export function TimelineEditor({
         </div>
 
         <div className="nle-scroll" ref={scrollRef}>
-          <div className="nle-canvas" style={{ width: timelineWidth }} onClick={() => onSelect(null)}>
-            <div className="nle-ruler">
+          <div className="nle-canvas" style={{ width: timelineWidth }}>
+            <div className="nle-ruler" onClick={onRulerClick}>
               {ticks.map((t) => (
                 <div key={t} className="nle-tick" style={{ left: t * zoom }}>
                   <span>{formatTimecode(t)}</span>
@@ -260,60 +261,67 @@ export function TimelineEditor({
               ))}
             </div>
 
-            <div className="nle-track">
-              {segments.length === 0 ? (
-                <div className="nle-track-empty">Drop clips here or add from media</div>
-              ) : (
-                segments.map(({ clip, start, dur }) => {
-                  const asset = assetMap.get(clip.assetId);
-                  return (
-                    <button
+            <div className="nle-track-wrap" onClick={(e) => {
+              if ((e.target as HTMLElement).closest(".nle-clip")) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = e.clientX - rect.left + (scrollRef.current?.scrollLeft ?? 0);
+              onSeek(Math.max(0, x / zoom));
+              onSelect(clipAtPlayhead?.clip.id ?? null);
+            }}>
+              <div className="nle-playhead" style={{ left: playhead * zoom }} />
+
+              <div className="nle-track">
+                {segments.length === 0 ? (
+                  <div className="nle-track-empty">Add clips from media or use AI</div>
+                ) : (
+                  segments.map(({ clip, start, dur }) => (
+                    <ClipBlock
                       key={clip.id}
-                      type="button"
-                      className={`nle-clip ${selectedId === clip.id ? "selected" : ""}`}
-                      style={{ left: start * zoom, width: Math.max(dur * zoom, 24) }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelect(clip.id);
+                      clip={clip}
+                      asset={assetMap.get(clip.assetId)}
+                      projectId={projectId}
+                      left={start * zoom}
+                      width={dur * zoom}
+                      zoom={zoom}
+                      selected={selectedId === clip.id}
+                      onSelect={() => onSelect(clip.id)}
+                      onUpdate={(patch) => updateClip(clip.id, patch)}
+                      onContextAction={(action) => {
+                        if (action === "split") splitAtPlayhead(clip.id);
+                        if (action === "delete") {
+                          updateClips(clips.filter((c) => c.id !== clip.id));
+                          onSelect(null);
+                        }
+                        if (action === "duplicate") {
+                          const dup = { ...clip, id: `clip-${Date.now().toString(36)}` };
+                          const idx = clips.indexOf(clip);
+                          const next = [...clips];
+                          next.splice(idx + 1, 0, dup);
+                          updateClips(next);
+                          onSelect(dup.id);
+                        }
                       }}
-                      title={asset?.id ?? clip.assetId}
-                    >
-                      {asset && (
-                        <VideoThumb
-                          projectId={projectId}
-                          asset={asset}
-                          className="nle-clip-thumb"
-                          atSec={clip.in}
-                        />
-                      )}
-                      <span className="nle-clip-label">{asset?.id ?? clip.assetId}</span>
-                    </button>
-                  );
-                })
+                    />
+                  ))
+                )}
+              </div>
+
+              {plan.lanes.music && (
+                <div className="nle-track audio">
+                  <div className="nle-audio-clip" style={{ left: (plan.lanes.music.startSec ?? 0) * zoom, width: Math.max(total * zoom * 0.8, 80) }}>
+                    ♪ {plan.lanes.music.assetId}
+                  </div>
+                </div>
+              )}
+
+              {plan.lanes.voiceover && (
+                <div className="nle-track audio">
+                  <div className="nle-audio-clip voice" style={{ left: (plan.lanes.voiceover.startSec ?? 0) * zoom, width: Math.max(total * zoom * 0.6, 80) }}>
+                    🎙 {plan.lanes.voiceover.assetId}
+                  </div>
+                </div>
               )}
             </div>
-
-            {plan.lanes.music && (
-              <div className="nle-track audio">
-                <div
-                  className="nle-audio-clip"
-                  style={{ left: (plan.lanes.music.startSec ?? 0) * zoom, width: Math.max(total * zoom * 0.8, 80) }}
-                >
-                  ♪ {plan.lanes.music.assetId}
-                </div>
-              </div>
-            )}
-
-            {plan.lanes.voiceover && (
-              <div className="nle-track audio">
-                <div
-                  className="nle-audio-clip voice"
-                  style={{ left: (plan.lanes.voiceover.startSec ?? 0) * zoom, width: Math.max(total * zoom * 0.6, 80) }}
-                >
-                  🎙 {plan.lanes.voiceover.assetId}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
