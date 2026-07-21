@@ -34,6 +34,7 @@ export function PreviewPanel({
   onChangeTarget,
 }: Props) {
   const [mode, setMode] = useState<"sequence" | "export">("sequence");
+  const [formatOpen, setFormatOpen] = useState(false);
 
   // Program monitor always matches export canvas — source clips letterbox inside.
   const previewAspect = plan.target.width / plan.target.height;
@@ -41,6 +42,9 @@ export function PreviewPanel({
   const formatId =
     FORMAT_PRESETS.find((p) => p.width === plan.target.width && p.height === plan.target.height)?.id ??
     "custom";
+
+  const currentFormat =
+    FORMAT_PRESETS.find((p) => p.id === formatId)?.label ?? `${plan.target.width}×${plan.target.height}`;
 
   const showExport = mode === "export" && outputUrl;
 
@@ -65,18 +69,44 @@ export function PreviewPanel({
             </button>
           )}
         </div>
-        <select
-          className="select format-select"
-          value={formatId}
-          onChange={(e) => {
-            const preset = FORMAT_PRESETS.find((p) => p.id === e.target.value);
-            if (preset) onChangeTarget(preset.width, preset.height);
-          }}
-        >
-          {FORMAT_PRESETS.map((p) => (
-            <option key={p.id} value={p.id}>{p.label}</option>
-          ))}
-        </select>
+        <div className="format-picker">
+          <button
+            type="button"
+            className="format-picker-trigger"
+            aria-haspopup="listbox"
+            aria-expanded={formatOpen}
+            onClick={() => setFormatOpen((v) => !v)}
+          >
+            {currentFormat}
+          </button>
+          {formatOpen && (
+            <>
+              <button
+                type="button"
+                className="format-picker-backdrop"
+                aria-label="Close format menu"
+                onClick={() => setFormatOpen(false)}
+              />
+              <div className="format-picker-menu" role="listbox">
+                {FORMAT_PRESETS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="option"
+                    aria-selected={formatId === p.id}
+                    className={`format-picker-item ${formatId === p.id ? "active" : ""}`}
+                    onClick={() => {
+                      onChangeTarget(p.width, p.height);
+                      setFormatOpen(false);
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <span className="preview-dims">{plan.target.width}×{plan.target.height}</span>
       </div>
 

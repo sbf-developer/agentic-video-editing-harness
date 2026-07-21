@@ -3,8 +3,10 @@ import { api } from "./api";
 import { AssetPanel } from "./components/AssetPanel";
 import { AiPanel } from "./components/AiPanel";
 import { PreviewPanel } from "./components/PreviewPanel";
+import { ResizeHandle } from "./components/ResizeHandle";
 import { TimelineEditor } from "./components/TimelineEditor";
 import { usePlayback } from "./hooks/usePlayback";
+import { useLayoutSizes } from "./hooks/useLayoutSizes";
 import type { EditPlan, ProjectState } from "./types";
 
 export default function App() {
@@ -187,6 +189,7 @@ export default function App() {
 
   const clips = plan?.lanes.video ?? [];
   const playback = usePlayback(clips);
+  const { sizes, nudgeMedia, nudgeAi, nudgeTimeline } = useLayoutSizes();
 
   if (bootError) {
     return (
@@ -226,7 +229,12 @@ export default function App() {
 
       {toast && <div className={`toast ${toast.type}`}>{toast.msg}</div>}
 
-      <div className="layout">
+      <div
+        className="layout"
+        style={{
+          gridTemplateColumns: `${sizes.mediaW}px 5px minmax(0, 1fr) 5px ${sizes.aiW}px`,
+        }}
+      >
         <AssetPanel
           assets={data.index.assets}
           projectId={projectId}
@@ -238,7 +246,14 @@ export default function App() {
           onAddAudio={addAudio}
         />
 
-        <main className="main">
+        <ResizeHandle axis="x" onDelta={nudgeMedia} />
+
+        <main
+          className="main"
+          style={{
+            gridTemplateRows: `minmax(0, 1fr) 5px ${sizes.timelineH}px`,
+          }}
+        >
           <PreviewPanel
             projectId={projectId}
             plan={plan}
@@ -254,6 +269,8 @@ export default function App() {
             onChangeTarget={setTargetFormat}
           />
 
+          <ResizeHandle axis="y" onDelta={nudgeTimeline} />
+
           <TimelineEditor
             plan={plan}
             assets={data.index.assets}
@@ -265,6 +282,8 @@ export default function App() {
             onChange={patchPlan}
           />
         </main>
+
+        <ResizeHandle axis="x" onDelta={nudgeAi} />
 
         <AiPanel projectId={projectId} onSubmit={aiEdit} busy={busy === "ai"} />
       </div>
