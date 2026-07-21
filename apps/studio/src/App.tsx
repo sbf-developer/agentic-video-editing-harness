@@ -14,6 +14,7 @@ export default function App() {
   const [busy, setBusy] = useState("");
   const [toast, setToast] = useState<{ msg: string; type: "ok" | "err" } | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [bootError, setBootError] = useState<string | null>(null);
 
   const notify = (msg: string, type: "ok" | "err" = "ok") => {
     setToast({ msg, type });
@@ -35,23 +36,27 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    loadProjects().then(async (list) => {
-      if (list.length) {
-        setProjectId(list[0]!);
-      } else {
-        const { id } = await api<{ id: string }>("/api/projects", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: "Untitled" }),
-        });
-        await loadProjects();
-        setProjectId(id);
-      }
-    }).catch((e) => notify(String(e), "err"));
+    setBootError(null);
+    loadProjects()
+      .then(async (list) => {
+        if (list.length) {
+          setProjectId(list[0]!);
+        } else {
+          const { id } = await api<{ id: string }>("/api/projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: "Untitled" }),
+          });
+          await loadProjects();
+          setProjectId(id);
+        }
+      })
+      .catch((e) => setBootError(String(e)));
   }, [loadProjects]);
 
   useEffect(() => {
-    if (projectId) loadProject(projectId).catch((e) => notify(String(e), "err"));
+    if (!projectId) return;
+    loadProject(projectId).catch((e) => setBootError(String(e)));
   }, [projectId, loadProject]);
 
   function patchPlan(next: EditPlan) {
@@ -146,6 +151,17 @@ export default function App() {
       },
     });
     setSelectedClip(id);
+  }
+
+  if (bootError) {
+    return (
+      <div className="loading error">
+        <p>{bootError}</p>
+        <button type="button" className="primary" onClick={() => window.location.reload()}>
+          Retry
+        </button>
+      </div>
+    );
   }
 
   if (!plan || !data) {

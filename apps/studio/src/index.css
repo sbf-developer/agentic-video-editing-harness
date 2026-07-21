@@ -32,6 +32,14 @@ button, input, select, textarea {
   display: grid;
   place-items: center;
   color: var(--muted);
+  gap: 12px;
+  text-align: center;
+  padding: 24px;
+}
+
+.loading.error p {
+  max-width: 420px;
+  line-height: 1.5;
 }
 
 .studio {
