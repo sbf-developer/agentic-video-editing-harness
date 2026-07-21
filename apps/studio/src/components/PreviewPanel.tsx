@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { usePreviewFrameSize } from "../hooks/usePreviewFrameSize";
 import { FORMAT_PRESETS, formatTimecode } from "../lib/media";
 import { SequencePlayer } from "./SequencePlayer";
 import type { EditPlan, MediaAsset, VideoClip } from "../types";
@@ -47,6 +48,7 @@ export function PreviewPanel({
     FORMAT_PRESETS.find((p) => p.id === formatId)?.label ?? `${plan.target.width}×${plan.target.height}`;
 
   const showExport = mode === "export" && outputUrl;
+  const { stageRef, size: frameSize } = usePreviewFrameSize(previewAspect);
 
   return (
     <section className="preview-panel">
@@ -110,30 +112,32 @@ export function PreviewPanel({
         <span className="preview-dims">{plan.target.width}×{plan.target.height}</span>
       </div>
 
-      <div
-        className="preview-stage"
-        style={{ "--preview-aspect": String(previewAspect) } as import("react").CSSProperties}
-      >
-        <div className="preview-frame">
-          <div className="preview-media-slot">
-            {showExport ? (
-              <video key={outputUrl} src={outputUrl} controls playsInline className="preview-video" />
-            ) : (
-              <SequencePlayer
-                projectId={projectId}
-                segments={segments}
-                assets={assets}
-                playhead={playhead}
-                playing={playing}
-                onTimeUpdate={(t) => {
-                  onPlayheadFromVideo(t);
-                  const total = segments.at(-1);
-                  if (total && t >= total.start + total.dur - 0.05) onPlayingChange(false);
-                }}
-              />
-            )}
+      <div className="preview-stage" ref={stageRef}>
+        {frameSize.width > 0 && frameSize.height > 0 && (
+          <div
+            className="preview-frame"
+            style={{ width: frameSize.width, height: frameSize.height }}
+          >
+            <div className="preview-media-slot">
+              {showExport ? (
+                <video key={outputUrl} src={outputUrl} controls playsInline className="preview-video" />
+              ) : (
+                <SequencePlayer
+                  projectId={projectId}
+                  segments={segments}
+                  assets={assets}
+                  playhead={playhead}
+                  playing={playing}
+                  onTimeUpdate={(t) => {
+                    onPlayheadFromVideo(t);
+                    const total = segments.at(-1);
+                    if (total && t >= total.start + total.dur - 0.05) onPlayingChange(false);
+                  }}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="transport">
