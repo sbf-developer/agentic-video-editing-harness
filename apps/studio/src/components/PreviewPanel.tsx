@@ -84,10 +84,10 @@ export function PreviewPanel({
         className="preview-stage"
         style={{ "--preview-aspect": String(previewAspect) } as import("react").CSSProperties}
       >
-        <div className="preview-fit">
-          <div className="preview-frame">
+        <div className="preview-frame">
+          <div className="preview-media-slot">
             {showExport ? (
-              <video key={outputUrl} src={outputUrl} controls playsInline className="preview-media" />
+              <video key={outputUrl} src={outputUrl} controls playsInline className="preview-video" />
             ) : (
               <SequencePlayer
                 projectId={projectId}
@@ -100,7 +100,6 @@ export function PreviewPanel({
                   const total = segments.at(-1);
                   if (total && t >= total.start + total.dur - 0.05) onPlayingChange(false);
                 }}
-                className="preview-media"
               />
             )}
           </div>

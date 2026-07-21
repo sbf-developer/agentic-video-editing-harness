@@ -11,7 +11,6 @@ interface Props {
   playhead: number;
   playing: boolean;
   onTimeUpdate: (t: number) => void;
-  className?: string;
 }
 
 export function SequencePlayer({
@@ -21,7 +20,6 @@ export function SequencePlayer({
   playhead,
   playing,
   onTimeUpdate,
-  className = "",
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const assetMap = new Map(assets.map((a) => [a.id, a]));
@@ -83,7 +81,7 @@ export function SequencePlayer({
 
   if (!segments.length) {
     return (
-      <div className={`sequence-empty ${className}`}>
+      <div className="preview-empty">
         <p>Add clips to preview</p>
       </div>
     );
@@ -91,7 +89,7 @@ export function SequencePlayer({
 
   if (!src) {
     return (
-      <div className={`sequence-empty ${className}`}>
+      <div className="preview-empty">
         <p>No video at playhead</p>
       </div>
     );
@@ -100,7 +98,7 @@ export function SequencePlayer({
   return (
     <video
       ref={videoRef}
-      className={className}
+      className="preview-video"
       src={src}
       playsInline
       preload="auto"
