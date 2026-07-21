@@ -1,26 +1,25 @@
 import "./env.js";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import multer from "multer";
 import {
-  EditPlanSchema,
   generateRenderScripts,
   loadEditPlan,
   loadMediaIndex,
-  saveEditPlan,
   saveMediaIndex,
-  saveValidationResult,
   validateEdl,
+  captureSnapshots,
+  runPostRenderQa,
   type EditPlan,
-  type ValidationResult,
 } from "@video-harness/core";
-import { buildMediaIndex } from "@video-harness/ingest";
-import { captureSnapshots, runPostRenderQa } from "@video-harness/core";
+
 import { generateEditPlan } from "./ai.js";
 import { getDeepSeekApiKey, isAiConfigured } from "./env.js";
+import { indexStudioAssets, syncStudioIndexIfNeeded } from "./ingest.js";
+import { loadStudioPlan, saveStudioPlan, StudioEditPlanSchema } from "./plan.js";
 import { scaffoldProject } from "./project.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
@@ -49,10 +48,14 @@ function readJson<T>(path: string): T | null {
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
+function param(value: string | string[]): string {
+  return Array.isArray(value) ? value[0]! : value;
+}
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, _file, cb) => {
-      const dir = join(projectPath(req.params.id), "assets");
+      const dir = join(projectPath(param(req.params.id)), "assets");
       mkdirSync(dir, { recursive: true });
       cb(null, dir);
     },
@@ -86,16 +89,18 @@ app.post("/api/projects", (req, res) => {
   }
 });
 
-app.get("/api/projects/:id", (req, res) => {
+app.get("/api/projects/:id", async (req, res) => {
   try {
-    const dir = projectPath(req.params.id);
+    const dir = projectPath(param(req.params.id));
+    const id = param(req.params.id);
+    const index = await syncStudioIndexIfNeeded(dir);
     const outputVideo = join(dir, "renders/output.mp4");
     res.json({
-      id: req.params.id,
+      id,
       plan: readJson(join(dir, "edit-plan.json")),
-      index: readJson(join(dir, "media-index.json")),
+      index,
       outputUrl: existsSync(outputVideo)
-        ? `/media/${req.params.id}/renders/output.mp4?t=${Date.now()}`
+        ? `/media/${id}/renders/output.mp4?t=${Date.now()}`
         : null,
     });
   } catch (e) {
@@ -105,21 +110,60 @@ app.get("/api/projects/:id", (req, res) => {
 
 app.put("/api/projects/:id/plan", (req, res) => {
   try {
-    const dir = projectPath(req.params.id);
-    const plan = EditPlanSchema.parse(req.body);
-    saveEditPlan(join(dir, "edit-plan.json"), plan);
+    const dir = projectPath(param(req.params.id));
+    const plan = StudioEditPlanSchema.parse(req.body);
+    saveStudioPlan(join(dir, "edit-plan.json"), plan);
     res.json({ ok: true, plan });
   } catch (e) {
     res.status(400).json({ error: String(e) });
   }
 });
 
+app.delete("/api/projects/:id/assets/:assetId", async (req, res) => {
+  try {
+    const dir = projectPath(param(req.params.id));
+    const assetId = param(req.params.assetId);
+    const index = loadMediaIndex(join(dir, "media-index.json"));
+    const asset = index.assets.find((a) => a.id === assetId);
+    if (!asset) return res.status(404).json({ error: "Asset not found" });
+
+    const filePath = join(dir, asset.path);
+    if (existsSync(filePath)) unlinkSync(filePath);
+    if (asset.thumbnail) {
+      const thumbPath = join(dir, asset.thumbnail);
+      if (existsSync(thumbPath)) unlinkSync(thumbPath);
+    }
+
+    const newIndex = {
+      ...index,
+      generatedAt: new Date().toISOString(),
+      assets: index.assets.filter((a) => a.id !== assetId),
+    };
+    saveMediaIndex(join(dir, "media-index.json"), newIndex);
+
+    const plan = loadStudioPlan(join(dir, "edit-plan.json"));
+    plan.lanes.video = plan.lanes.video.filter((c) => c.assetId !== assetId);
+    if (plan.lanes.music?.assetId === assetId) delete plan.lanes.music;
+    if (plan.lanes.voiceover?.assetId === assetId) delete plan.lanes.voiceover;
+    if (plan.lanes.sfx) {
+      plan.lanes.sfx = plan.lanes.sfx.filter((s) => s.assetId !== assetId);
+    }
+    saveStudioPlan(join(dir, "edit-plan.json"), plan);
+
+    res.json({ ok: true, plan, assets: newIndex.assets });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 app.post("/api/projects/:id/upload", upload.array("files", 20), async (req, res) => {
   try {
-    const dir = projectPath(req.params.id);
-    const index = await buildMediaIndex({ projectDir: dir, paths: ["assets"] });
-    saveMediaIndex(join(dir, "media-index.json"), index);
-    res.json({ ok: true, assets: index.assets, uploaded: (req.files as Express.Multer.File[])?.length ?? 0 });
+    const dir = projectPath(param(req.params.id));
+    const uploaded = (req.files as Express.Multer.File[])?.length ?? 0;
+    if (!uploaded) return res.status(400).json({ error: "No files received" });
+
+    const index = await indexStudioAssets(dir);
+    res.json({ ok: true, assets: index.assets, uploaded });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
@@ -127,9 +171,8 @@ app.post("/api/projects/:id/upload", upload.array("files", 20), async (req, res)
 
 app.post("/api/projects/:id/ingest", async (req, res) => {
   try {
-    const dir = projectPath(req.params.id);
-    const index = await buildMediaIndex({ projectDir: dir, paths: ["assets"] });
-    saveMediaIndex(join(dir, "media-index.json"), index);
+    const dir = projectPath(param(req.params.id));
+    const index = await indexStudioAssets(dir);
     res.json({ ok: true, assets: index.assets });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -148,8 +191,8 @@ app.post("/api/projects/:id/ai-edit", async (req, res) => {
       });
     }
 
-    const dir = projectPath(req.params.id);
-    const currentPlan = loadEditPlan(join(dir, "edit-plan.json"));
+    const dir = projectPath(param(req.params.id));
+    const currentPlan = loadStudioPlan(join(dir, "edit-plan.json"));
     const index = loadMediaIndex(join(dir, "media-index.json"));
 
     if (!index.assets.length) {
@@ -159,12 +202,13 @@ app.post("/api/projects/:id/ai-edit", async (req, res) => {
     const plan = await generateEditPlan({
       apiKey: key,
       prompt: prompt.trim(),
-      currentPlan,
+      currentPlan: currentPlan as EditPlan,
       mediaIndex: index,
     });
 
-    saveEditPlan(join(dir, "edit-plan.json"), plan);
-    res.json({ ok: true, plan });
+    const studioPlan = StudioEditPlanSchema.parse(plan);
+    saveStudioPlan(join(dir, "edit-plan.json"), studioPlan);
+    res.json({ ok: true, plan: studioPlan });
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
@@ -172,7 +216,7 @@ app.post("/api/projects/:id/ai-edit", async (req, res) => {
 
 app.post("/api/projects/:id/render", async (req, res) => {
   try {
-    const dir = projectPath(req.params.id);
+    const dir = projectPath(param(req.params.id));
     const plan = loadEditPlan(join(dir, "edit-plan.json"));
     const index = loadMediaIndex(join(dir, "media-index.json"));
 
@@ -210,7 +254,7 @@ app.post("/api/projects/:id/render", async (req, res) => {
 
 app.post("/api/projects/:id/snapshot", (req, res) => {
   try {
-    const dir = projectPath(req.params.id);
+    const dir = projectPath(param(req.params.id));
     const plan = loadEditPlan(join(dir, "edit-plan.json"));
     const videoPath = join(dir, "renders/output.mp4");
     if (!existsSync(videoPath)) return res.status(400).json({ error: "Render first" });
@@ -221,7 +265,18 @@ app.post("/api/projects/:id/snapshot", (req, res) => {
   }
 });
 
-app.use("/media", express.static(PROJECTS_DIR));
+app.use(
+  "/media",
+  express.static(PROJECTS_DIR, {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith(".mp4")) res.setHeader("Content-Type", "video/mp4");
+      else if (filePath.endsWith(".webm")) res.setHeader("Content-Type", "video/webm");
+      else if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) res.setHeader("Content-Type", "image/jpeg");
+      else if (filePath.endsWith(".png")) res.setHeader("Content-Type", "image/png");
+      res.setHeader("Accept-Ranges", "bytes");
+    },
+  }),
+);
 
 const PORT = 3847;
 app.listen(PORT, () => {

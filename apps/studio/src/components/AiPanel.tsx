@@ -21,50 +21,54 @@ export function AiPanel({ onSubmit, busy }: Props) {
     prompt.trim() && (serverKeyConfigured || apiKey.trim()) && serverKeyConfigured !== null;
 
   return (
-    <aside className="ai-panel">
-      <div className="panel-label">AI Editor</div>
-      <p className="ai-hint">Describe the edit. AI builds the timeline from your uploaded assets.</p>
+    <aside className="panel ai-panel">
+      <header className="panel-head">
+        <h2>AI</h2>
+      </header>
+
+      <p className="panel-desc">Describe your edit — AI builds the timeline from uploaded media.</p>
 
       {serverKeyConfigured === true && (
-        <p className="ai-key-status">DeepSeek key loaded from server (.env)</p>
+        <p className="status-ok">DeepSeek connected</p>
       )}
       {serverKeyConfigured === false && (
-        <>
-          <label className="field-label">DeepSeek API key</label>
+        <label className="field">
+          <span>API key</span>
           <input
             type="password"
-            className="text-input"
-            placeholder="sk-... (or set DEEPSEEK_API_KEY in apps/studio/.env)"
+            className="input"
+            placeholder="sk-... or apps/studio/.env"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
-        </>
+        </label>
       )}
 
-      <label className="field-label">Prompt</label>
-      <textarea
-        className="prompt-input"
-        rows={5}
-        placeholder="e.g. 15s vertical cut — open with the lake shot, add voiceover, fade music under speech, end on product clip"
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-      />
+      <label className="field">
+        <span>Prompt</span>
+        <textarea
+          className="input textarea"
+          rows={6}
+          placeholder="15s vertical — open on the hero shot, quick cuts, fade out on logo"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+        />
+      </label>
 
       <button
         type="button"
-        className="primary full"
+        className="btn primary full"
         disabled={busy || !canSubmit}
         onClick={() => onSubmit(prompt, serverKeyConfigured ? undefined : apiKey)}
       >
-        {busy ? "Editing…" : "Generate edit"}
+        {busy ? "Generating" : "Generate edit"}
       </button>
 
-      <div className="ai-examples">
-        <span>Try:</span>
+      <div className="chips">
         {[
-          "30s montage, fastest cuts on beat",
-          "Slow cinematic pacing, crossfades",
-          "Remove silence gaps, tighten to 20s",
+          "30s montage, fast cuts",
+          "Slow cinematic pacing",
+          "Tighten to 20 seconds",
         ].map((ex) => (
           <button key={ex} type="button" className="chip" onClick={() => setPrompt(ex)}>
             {ex}

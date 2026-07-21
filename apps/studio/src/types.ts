@@ -32,6 +32,8 @@ export interface MediaAsset {
   path: string;
   type: string;
   durationSec?: number;
+  width?: number;
+  height?: number;
   thumbnail?: string;
 }
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import { AssetPanel } from "./components/AssetPanel";
 import { AiPanel } from "./components/AiPanel";
+import { PreviewPanel } from "./components/PreviewPanel";
 import { TimelineEditor } from "./components/TimelineEditor";
 import type { EditPlan, ProjectState } from "./types";
 
@@ -146,18 +147,46 @@ export default function App() {
         ...plan.lanes,
         video: [
           ...plan.lanes.video,
-          { id, assetId, in: 0, out: Math.min(dur, 5), purpose: "clip", speed: 1 },
+          { id, assetId, in: 0, out: Math.min(dur, dur), purpose: "clip", speed: 1 },
         ],
       },
     });
     setSelectedClip(id);
   }
 
+  function addAudio(assetId: string, lane: "music" | "voiceover") {
+    if (!plan) return;
+    patchPlan({
+      ...plan,
+      lanes: {
+        ...plan.lanes,
+        [lane]: { assetId, startSec: 0, gainDb: lane === "music" ? -18 : 0 },
+      },
+    });
+    notify(lane === "music" ? "Music lane added" : "Voice lane added");
+  }
+
+  function onAssetRemoved(nextPlan: unknown) {
+    setPlan(nextPlan as EditPlan);
+    setDirty(false);
+    setSelectedClip(null);
+    notify("Asset removed");
+  }
+
+  function setTargetFormat(width: number, height: number) {
+    if (!plan) return;
+    patchPlan({ ...plan, target: { ...plan.target, width, height } });
+  }
+
+  const selectedClipObj = selectedClip
+    ? plan?.lanes.video.find((c) => c.id === selectedClip) ?? null
+    : null;
+
   if (bootError) {
     return (
-      <div className="loading error">
+      <div className="screen-center error">
         <p>{bootError}</p>
-        <button type="button" className="primary" onClick={() => window.location.reload()}>
+        <button type="button" className="btn primary" onClick={() => window.location.reload()}>
           Retry
         </button>
       </div>
@@ -165,52 +194,58 @@ export default function App() {
   }
 
   if (!plan || !data) {
-    return <div className="loading">Loading…</div>;
+    return <div className="screen-center">Loading</div>;
   }
 
   return (
-    <div className="studio">
-      <header className="topbar">
-        <div className="brand">Studio</div>
-        <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-          {projects.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-        <button type="button" className="ghost" onClick={newProject} disabled={!!busy}>New</button>
-        <div className="spacer" />
-        {dirty && <span className="unsaved">Unsaved</span>}
-        <button type="button" className="ghost" onClick={savePlan} disabled={!!busy || !dirty}>Save</button>
-        <button type="button" className="primary" onClick={render} disabled={!!busy}>
-          {busy === "render" ? "Exporting…" : "Export"}
-        </button>
+    <div className="app">
+      <header className="header">
+        <div className="header-left">
+          <span className="logo">Studio</span>
+          <select className="select" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+            {projects.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        </div>
+        <div className="header-right">
+          <button type="button" className="btn ghost" onClick={newProject} disabled={!!busy}>New</button>
+          {dirty && <span className="badge">Unsaved</span>}
+          <button type="button" className="btn ghost" onClick={savePlan} disabled={!!busy || !dirty}>Save</button>
+          <button type="button" className="btn primary" onClick={render} disabled={!!busy || !plan.lanes.video.length}>
+            {busy === "render" ? "Exporting" : "Export"}
+          </button>
+        </div>
       </header>
 
       {toast && <div className={`toast ${toast.type}`}>{toast.msg}</div>}
 
-      <div className="workspace">
+      <div className="layout">
         <AssetPanel
           assets={data.index.assets}
           projectId={projectId}
           busy={!!busy}
+          onNotify={notify}
           onUploaded={() => loadProject(projectId)}
+          onRemoved={onAssetRemoved}
           onAddToTimeline={addClip}
+          onAddAudio={addAudio}
         />
 
-        <main className="center">
-          <div className="preview-wrap">
-            {data.outputUrl ? (
-              <video key={data.outputUrl} src={data.outputUrl} controls className="preview-video" />
-            ) : (
-              <div className="preview-placeholder">
-                <span>Preview</span>
-                <small>Export to preview</small>
-              </div>
-            )}
-          </div>
+        <main className="main">
+          <PreviewPanel
+            projectId={projectId}
+            plan={plan}
+            assets={data.index.assets}
+            outputUrl={data.outputUrl}
+            selectedClip={selectedClipObj}
+            onChangeTarget={setTargetFormat}
+          />
+
           <TimelineEditor
             plan={plan}
             assets={data.index.assets}
+            projectId={projectId}
             selectedId={selectedClip}
             onSelect={setSelectedClip}
             onChange={patchPlan}
